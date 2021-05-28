@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
+import 'package:camera2/api/api.dart';
+import 'package:camera2/model/ocr_model.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:path_provider/path_provider.dart';
 
 Future<void> main() async {
@@ -43,6 +46,7 @@ class TakePictureScreen extends StatefulWidget {
 class TakePictureScreenState extends State<TakePictureScreen> {
   CameraController _controller;
   Future<void> _initializeControllerFuture;
+  ApiOcr _apiOcr = ApiOcr();
 
   @override
   void initState() {
@@ -76,16 +80,28 @@ class TakePictureScreenState extends State<TakePictureScreen> {
       await _controller.takePicture(filePath);
 
       print("filepathTake = ${filePath}");
-      // If the picture was taken, display it on a new screen.
-      // await Navigator.of(context).push(
-      //   MaterialPageRoute(
-      //     builder: (context) => DisplayPictureScreen(
-      //       // Pass the automatically generated path to
-      //       // the DisplayPictureScreen widget.
-      //       imagePath: filePath,
-      //     ),
-      //   ),
-      // );
+
+      File file = File(filePath);
+      _apiOcr.postOcr(file).then((value) {
+        if (value is OcrModel)
+          Fluttertoast.showToast(
+              msg: "${value.results[0].plate}",
+              toastLength: Toast.LENGTH_SHORT,
+              gravity: ToastGravity.BOTTOM,
+              timeInSecForIosWeb: 1,
+              backgroundColor: Colors.black,
+              textColor: Colors.white,
+              fontSize: 16.0);
+        else
+          Fluttertoast.showToast(
+              msg: "${value}",
+              toastLength: Toast.LENGTH_SHORT,
+              gravity: ToastGravity.BOTTOM,
+              timeInSecForIosWeb: 1,
+              backgroundColor: Colors.black,
+              textColor: Colors.white,
+              fontSize: 16.0);
+      });
     } catch (e) {
       // If an error occurs, log the error to the console.
       print(e);
@@ -101,7 +117,7 @@ class TakePictureScreenState extends State<TakePictureScreen> {
 
   @override
   Widget build(BuildContext context) {
-    Timer(Duration(milliseconds: 3000), () {
+    Timer(Duration(milliseconds: 5000), () {
       takeCamera();
       setState(() {});
     });
@@ -123,36 +139,6 @@ class TakePictureScreenState extends State<TakePictureScreen> {
           }
         },
       ),
-    );
-  }
-}
-
-class DisplayPictureScreen extends StatefulWidget {
-  final String imagePath;
-
-  const DisplayPictureScreen({Key key, @required this.imagePath})
-      : super(key: key);
-
-  @override
-  _DisplayPictureScreenState createState() => _DisplayPictureScreenState();
-}
-
-class _DisplayPictureScreenState extends State<DisplayPictureScreen> {
-  @override
-  void initState() {
-    Timer(Duration(milliseconds: 2), () {
-      Navigator.of(context).pop();
-    });
-    super.initState();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Display the Picture')),
-      // The image is stored as a file on the device. Use the `Image.file`
-      // constructor with the given path to display the image.
-      body: Image.file(File(this.widget.imagePath)),
     );
   }
 }

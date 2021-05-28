@@ -4,7 +4,7 @@
 
 import 'dart:convert';
 
-OcrModel ocrModelFromJson(String str) => OcrModel.fromJson(json.decode(str));
+OcrModel ocrModelFromJson(Map str) => OcrModel.fromJson(str);
 
 String ocrModelToJson(OcrModel data) => json.encode(data.toJson());
 
