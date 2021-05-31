@@ -44,7 +44,7 @@ class ApiOcr {
         return "Plat Nomor Tidak Ditemukan";
       }
     } on DioError catch (e) {
-      print("DioError = ${e.message}");
+      print("DioError = ${e}");
     }
   }
 }

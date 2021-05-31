@@ -48,6 +48,9 @@ android {
             signingConfig signingConfigs.debug
         }
     }
+    dexOptions {
+        javaMaxHeapSize "4g"
+    }
 }
 
 flutter {

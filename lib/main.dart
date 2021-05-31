@@ -4,41 +4,21 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:camera2/api/api.dart';
 import 'package:camera2/model/ocr_model.dart';
+import 'package:camera2/view_model/camera_viewmodel.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 
-Future<void> main() async {
-  // Ensure that plugin services are initialized so that `availableCameras()`
-  // can be called before `runApp()`
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Obtain a list of the available cameras on the device.
-  final cameras = await availableCameras();
-
-  // Get a specific camera from the list of available cameras.
-  final firstCamera = cameras.first;
-
-  runApp(
-    MaterialApp(
-      theme: ThemeData.dark(),
-      home: TakePictureScreen(
-        // Pass the appropriate camera to the TakePictureScreen widget.
-        camera: firstCamera,
-      ),
-    ),
+void main() async {
+  return runApp(
+    ChangeNotifierProvider(
+        create: (context) => CameraViewModel(), child: TakePictureScreen()),
   );
 }
 
 // A screen that allows users to take a picture using a given camera.
 class TakePictureScreen extends StatefulWidget {
-  final CameraDescription camera;
-
-  const TakePictureScreen({
-    Key key,
-    @required this.camera,
-  }) : super(key: key);
-
   @override
   TakePictureScreenState createState() => TakePictureScreenState();
 }
@@ -50,27 +30,25 @@ class TakePictureScreenState extends State<TakePictureScreen> {
 
   @override
   void initState() {
+    initCamera();
     super.initState();
-    // To display the current output from the Camera,
-    // create a CameraController.
+  }
+
+  void initCamera() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    final cameras = await availableCameras();
+    final firstCamera = cameras.first;
     _controller = CameraController(
-      // Get a specific camera from the list of available cameras.
-      widget.camera,
-      // Define the resolution to use.
-      ResolutionPreset.medium,
+      firstCamera,
+      ResolutionPreset.max,
     );
 
-    // Next, initialize the controller. This returns a Future.
     _initializeControllerFuture = _controller.initialize();
   }
 
-  void takeCamera() async {
+  void takeCamera({CameraViewModel cameraViewModel}) async {
     try {
-      // Ensure that the camera is initialized.
       await _initializeControllerFuture;
-
-      // Attempt to take a picture and get the file `image`
-      // where it was saved.
       String timestamp() =>
           new DateTime.now().millisecondsSinceEpoch.toString();
       final Directory extDir = await getApplicationDocumentsDirectory();
@@ -83,16 +61,7 @@ class TakePictureScreenState extends State<TakePictureScreen> {
 
       File file = File(filePath);
       _apiOcr.postOcr(file).then((value) {
-        if (value is OcrModel)
-          Fluttertoast.showToast(
-              msg: "${value.results[0].plate}",
-              toastLength: Toast.LENGTH_SHORT,
-              gravity: ToastGravity.BOTTOM,
-              timeInSecForIosWeb: 1,
-              backgroundColor: Colors.black,
-              textColor: Colors.white,
-              fontSize: 16.0);
-        else
+        if (value is! OcrModel) {
           Fluttertoast.showToast(
               msg: "${value}",
               toastLength: Toast.LENGTH_SHORT,
@@ -101,44 +70,116 @@ class TakePictureScreenState extends State<TakePictureScreen> {
               backgroundColor: Colors.black,
               textColor: Colors.white,
               fontSize: 16.0);
+        } else {
+          Fluttertoast.showToast(
+              msg: "${value.results[0].plate}",
+              toastLength: Toast.LENGTH_SHORT,
+              gravity: ToastGravity.BOTTOM,
+              timeInSecForIosWeb: 1,
+              backgroundColor: Colors.black,
+              textColor: Colors.white,
+              fontSize: 16.0);
+          cameraViewModel.addPoliceNumber(value.results[0].plate);
+        }
       });
     } catch (e) {
       // If an error occurs, log the error to the console.
       print(e);
+      Fluttertoast.showToast(
+          msg: "${e}",
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          timeInSecForIosWeb: 1,
+          backgroundColor: Colors.black,
+          textColor: Colors.white,
+          fontSize: 16.0);
     }
   }
 
   @override
   void dispose() {
-    // Dispose of the controller when the widget is disposed.
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    CameraViewModel viewModel =
+        Provider.of<CameraViewModel>(context, listen: false);
     Timer(Duration(milliseconds: 5000), () {
-      takeCamera();
+      //   takeCamera(cameraViewModel: viewModel);
       setState(() {});
     });
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Take a picture')),
-      // You must wait until the controller is initialized before displaying the
-      // camera preview. Use a FutureBuilder to display a loading spinner until the
-      // controller has finished initializing.
-      body: FutureBuilder<void>(
-        future: _initializeControllerFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done) {
-            // If the Future is complete, display the preview.
-            return CameraPreview(_controller);
-          } else {
-            // Otherwise, display a loading indicator.
-            return const Center(child: CircularProgressIndicator());
-          }
-        },
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('Ocr Test'),
+          leading: (IconButton(
+            icon: Icon(
+              Icons.timer,
+              size: 30.0,
+            ),
+            onPressed: () => _showMyDialog(context),
+          )),
+        ),
+        body: FutureBuilder<void>(
+          future: _initializeControllerFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.done) {
+              return Stack(
+                children: [
+                  CameraPreview(_controller),
+
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Container(
+                      height: double.infinity,
+                      child: ListView.builder(
+                        itemCount: viewModel.policeNumber.length,
+                        reverse: true,
+                        shrinkWrap: true,
+                        itemBuilder: (context, i) {
+                          return Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(
+                              "${viewModel.policeNumber[i]}",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            } else {
+              return const Center(child: CircularProgressIndicator());
+            }
+          },
+        ),
       ),
+    );
+  }
+
+  Future<void> _showMyDialog(BuildContext context) async {
+    TextEditingController timerController = TextEditingController();
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // user must tap button!
+      builder: (_) {
+        return Dialog(
+            child: ListView(
+          children: [
+            TextField(
+              controller: timerController,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(),
+              ),
+            )
+          ],
+        ));
+      },
     );
   }
 }
