@@ -104,10 +104,12 @@ class TakePictureScreenState extends State<TakePictureScreen> {
 
   @override
   Widget build(BuildContext context) {
+    //Still called twice
     CameraViewModel viewModel =
         Provider.of<CameraViewModel>(context, listen: false);
-    Timer(Duration(milliseconds: 5000), () {
-      //   takeCamera(cameraViewModel: viewModel);
+    Timer(Duration(milliseconds: viewModel.timer), () {
+      //  takeCamera(cameraViewModel: viewModel);
+      print("timerOn:) = ${viewModel.timer / 1000} detik");
       setState(() {});
     });
 
@@ -115,13 +117,23 @@ class TakePictureScreenState extends State<TakePictureScreen> {
       home: Scaffold(
         appBar: AppBar(
           title: const Text('Ocr Test'),
-          leading: (IconButton(
-            icon: Icon(
-              Icons.timer,
-              size: 30.0,
-            ),
-            onPressed: () => _showMyDialog(context),
-          )),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 10, top: 5),
+              child: Builder(builder: (context) {
+                return InkWell(
+                  onTap: () {
+                    _showMyDialog(context, viewModel);
+                    print("dadd");
+                  },
+                  child: Icon(
+                    Icons.timer,
+                    size: 30.0,
+                  ),
+                );
+              }),
+            )
+          ],
         ),
         body: FutureBuilder<void>(
           future: _initializeControllerFuture,
@@ -130,7 +142,6 @@ class TakePictureScreenState extends State<TakePictureScreen> {
               return Stack(
                 children: [
                   CameraPreview(_controller),
-
                   Padding(
                     padding: const EdgeInsets.all(12.0),
                     child: Container(
@@ -162,22 +173,48 @@ class TakePictureScreenState extends State<TakePictureScreen> {
     );
   }
 
-  Future<void> _showMyDialog(BuildContext context) async {
+  Future<void> _showMyDialog(
+      BuildContext context, CameraViewModel cameraViewModel) async {
     TextEditingController timerController = TextEditingController();
     return showDialog<void>(
       context: context,
-      barrierDismissible: false, // user must tap button!
+      barrierDismissible: true, // user must tap button!
       builder: (_) {
         return Dialog(
-            child: ListView(
-          children: [
-            TextField(
-              controller: timerController,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
+            child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListView(
+                shrinkWrap: true,
+                children: [
+                  Text("Ubah Timer"),
+                  SizedBox(
+                    height: 10,
+                  ),
+                  TextField(
+                    controller: timerController,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 20,
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      cameraViewModel
+                          .changeTimer(int.parse(timerController.text) * 1000);
+                      Navigator.of(context).pop();
+                    },
+                    child: Text("Submit"),
+                    style: ElevatedButton.styleFrom(primary: Colors.green),
+                  )
+                ],
               ),
-            )
-          ],
+            ],
+          ),
         ));
       },
     );
