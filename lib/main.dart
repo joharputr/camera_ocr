@@ -6,9 +6,11 @@ import 'package:camera2/api/api.dart';
 import 'package:camera2/model/ocr_model.dart';
 import 'package:camera2/view_model/camera_viewmodel.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:soundpool/soundpool.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,9 +44,11 @@ class TakePictureScreenState extends State<TakePictureScreen> {
   Future<void> _initializeControllerFuture;
   ApiOcr _apiOcr = ApiOcr();
   Timer timer;
+  Soundpool _soundpool;
 
   @override
   void initState() {
+    _soundId = _loadSound();
     _controller = CameraController(
       widget.camera,
       ResolutionPreset.max,
@@ -53,6 +57,22 @@ class TakePictureScreenState extends State<TakePictureScreen> {
     _initializeControllerFuture = _controller.initialize();
     setTimer();
     super.initState();
+
+    _soundpool = Soundpool.fromOptions(
+        options: SoundpoolOptions(streamType: StreamType.notification));
+  }
+
+  Future<int> _soundId;
+  int _alarmSoundStreamId;
+
+  Future<int> _loadSound() async {
+    var asset = await rootBundle.load("assets/camera-shutter.wav");
+    return await _soundpool.load(asset);
+  }
+
+  Future<void> _playSound() async {
+    var _alarmSound = await _soundId;
+    _alarmSoundStreamId = await _soundpool.play(_alarmSound);
   }
 
   void setTimer() {
@@ -85,6 +105,7 @@ class TakePictureScreenState extends State<TakePictureScreen> {
       print("filepathTake = ${filePath}");
 
       File file = File(filePath);
+      _playSound();
       _apiOcr.postOcr(file).then((value) {
         if (value is! OcrModel) {
           Fluttertoast.showToast(
@@ -128,8 +149,6 @@ class TakePictureScreenState extends State<TakePictureScreen> {
     timer?.cancel();
     super.dispose();
   }
-
-  secTimer() {}
 
   @override
   Widget build(BuildContext context) {
