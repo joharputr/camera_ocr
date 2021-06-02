@@ -11,14 +11,28 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final cameras = await availableCameras();
+  final firstCamera = cameras.first;
+
   return runApp(
     ChangeNotifierProvider(
-        create: (context) => CameraViewModel(), child: TakePictureScreen()),
+        create: (context) => CameraViewModel(),
+        child: TakePictureScreen(
+          camera: firstCamera,
+        )),
   );
 }
 
 // A screen that allows users to take a picture using a given camera.
 class TakePictureScreen extends StatefulWidget {
+  final CameraDescription camera;
+
+  const TakePictureScreen({
+    Key key,
+    @required this.camera,
+  }) : super(key: key);
+
   @override
   TakePictureScreenState createState() => TakePictureScreenState();
 }
@@ -27,23 +41,34 @@ class TakePictureScreenState extends State<TakePictureScreen> {
   CameraController _controller;
   Future<void> _initializeControllerFuture;
   ApiOcr _apiOcr = ApiOcr();
+  Timer timer;
 
   @override
   void initState() {
-    initCamera();
-    super.initState();
-  }
-
-  void initCamera() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    final cameras = await availableCameras();
-    final firstCamera = cameras.first;
     _controller = CameraController(
-      firstCamera,
+      widget.camera,
       ResolutionPreset.max,
     );
 
     _initializeControllerFuture = _controller.initialize();
+    setTimer();
+    super.initState();
+  }
+
+  void setTimer() {
+    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+      print(
+          "timerPV = ${Provider.of<CameraViewModel>(context, listen: false).timer}");
+      timer = Timer.periodic(
+          Duration(
+              seconds: Provider.of<CameraViewModel>(context, listen: false)
+                  .timer), (timer) {
+        print("testTImer");
+        takeCamera(
+            cameraViewModel:
+                Provider.of<CameraViewModel>(context, listen: false));
+      });
+    });
   }
 
   void takeCamera({CameraViewModel cameraViewModel}) async {
@@ -52,7 +77,7 @@ class TakePictureScreenState extends State<TakePictureScreen> {
       String timestamp() =>
           new DateTime.now().millisecondsSinceEpoch.toString();
       final Directory extDir = await getApplicationDocumentsDirectory();
-      final String dirPath = '${extDir.path}/Pictures/starX';
+      final String dirPath = '${extDir.path}/Pictures/OCR';
       await Directory(dirPath).create(recursive: true);
       final String filePath = '$dirPath/${timestamp()}.jpg';
       await _controller.takePicture(filePath);
@@ -80,6 +105,7 @@ class TakePictureScreenState extends State<TakePictureScreen> {
               textColor: Colors.white,
               fontSize: 16.0);
           cameraViewModel.addPoliceNumber(value.results[0].plate);
+          setState(() {});
         }
       });
     } catch (e) {
@@ -99,20 +125,24 @@ class TakePictureScreenState extends State<TakePictureScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    timer?.cancel();
     super.dispose();
   }
+
+  secTimer() {}
 
   @override
   Widget build(BuildContext context) {
     //Still called twice
     CameraViewModel viewModel =
         Provider.of<CameraViewModel>(context, listen: false);
-    Timer(Duration(milliseconds: viewModel.timer), () {
-      //  takeCamera(cameraViewModel: viewModel);
-      print("timerOn:) = ${viewModel.timer / 1000} detik");
-      setState(() {});
-    });
 
+    // Timer(Duration(milliseconds: viewModel.timer), () {
+    //   takeCamera(cameraViewModel: viewModel);
+    //   print("timerOn:) = ${viewModel.timer / 1000} detik");
+    //   setState(() {});
+    // });
+    print("timerBuild  = ${viewModel.timer}");
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
@@ -205,7 +235,12 @@ class TakePictureScreenState extends State<TakePictureScreen> {
                   ElevatedButton(
                     onPressed: () {
                       cameraViewModel
-                          .changeTimer(int.parse(timerController.text) * 1000);
+                          .changeTimer(int.parse(timerController.text))
+                          .then((value) {
+                        timer.cancel();
+                        setTimer();
+                      });
+                      setState(() {});
                       Navigator.of(context).pop();
                     },
                     child: Text("Submit"),
